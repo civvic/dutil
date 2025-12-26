@@ -1,0 +1,9 @@
+project:
+  output-dir: _docs
+
+website:
+  title: "dlgutil"
+  site-url: "https://civvic.github.io/dlgutil"
+  description: "Utilities to work with SolveIt"
+  repo-branch: main
+  repo-url: "https://github.com/civvic/dlgutil"
