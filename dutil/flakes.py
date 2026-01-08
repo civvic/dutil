@@ -16,7 +16,7 @@ from pyflakes.messages import Message
 from pyflakes.api import check as _check
 from dialoghelper.core import find_msgs, find_dname, find_msg_id, find_var, read_msg, update_msg, add_msg
 
-# %% ../nbs/05_flakes.ipynb 23
+# %% ../nbs/05_flakes.ipynb 22
 @FC.patch
 def as_tuple(self: Message): return type(self).__name__, self.filename, (self.lineno, self.col+1), self.message %self.message_args, self.message_args
 
@@ -24,7 +24,7 @@ class ListReporter(Reporter):
     def __init__(self): self.warnings = FC.L(); super().__init__(None, None)
     def flake(self, message): self.warnings.append(message.as_tuple())
 
-# %% ../nbs/05_flakes.ipynb 46
+# %% ../nbs/05_flakes.ipynb 45
 def _line2msgid(codes, msgids):
     line, l2id = 1, FC.L()
     for code, msgid in zip(codes, msgids):
@@ -34,12 +34,12 @@ def _line2msgid(codes, msgids):
         line = end
     return l2id
 
-# %% ../nbs/05_flakes.ipynb 54
+# %% ../nbs/05_flakes.ipynb 53
 def _get_source(msgs):
     l2id = _line2msgid(msgs.attrgot('content'), msgs.attrgot('id'))
     return '\n'.join(l2id.itemgot(0)), l2id
 
-# %% ../nbs/05_flakes.ipynb 63
+# %% ../nbs/05_flakes.ipynb 62
 def _warningtypes():
     "Return all pyflakes message types"
     pfmod = pyflakes.messages
@@ -49,13 +49,13 @@ def _warningtypes():
         for sym in syms 
         if sym != 'Message' and isinstance(o := getattr(pfmod, sym), type) and kls_msg in o.mro()}
 
-# %% ../nbs/05_flakes.ipynb 64
+# %% ../nbs/05_flakes.ipynb 63
 _ALL = ','.join(_warningtypes().keys())
 _IMPORTS = 'ImportShadowedByLoopVar,ImportStarNotPermitted,ImportStarUsage,ImportStarUsed,LateFutureImport,UnusedImport'
 _VARS = 'UndefinedExport,UndefinedLocal,UndefinedName,UnusedIndirectAssignment,UnusedVariable'
 
 
-# %% ../nbs/05_flakes.ipynb 71
+# %% ../nbs/05_flakes.ipynb 70
 def check_flakes(dname:str='', wtypes:str=_ALL):
     "Check for pyflakes 'warnings' in `sname` or current dialog"
     cds = find_msgs(msg_type='code', dname=dname)
@@ -64,7 +64,7 @@ def check_flakes(dname:str='', wtypes:str=_ALL):
     if wtypes != _ALL: wtypes = wtypes.split(',')
     return nw, l2id, reprt.warnings if wtypes == _ALL else reprt.warnings.filter(lambda x: x[0] in wtypes)
 
-# %% ../nbs/05_flakes.ipynb 76
+# %% ../nbs/05_flakes.ipynb 75
 def _group_flakes(wns, l2id):
     "Group pyflakes warnings by msgid and warning type"
     res = defaultdict(lambda:defaultdict(list))
@@ -73,16 +73,16 @@ def _group_flakes(wns, l2id):
         res[msgid][wtype].append((rng, rest))
     return res
 
-# %% ../nbs/05_flakes.ipynb 78
+# %% ../nbs/05_flakes.ipynb 77
 def _tag(name, msgid=''): return f"<!-- {name}: {msgid or find_msg_id()} -->"
 
-# %% ../nbs/05_flakes.ipynb 79
+# %% ../nbs/05_flakes.ipynb 78
 _lnks = (
     '''<span hx-on-click="setTimeout(() => selectMsg($('%s'), {centered: true}), 100)" class="uk-link text-blue-600 p-1 cursor-pointer hover:bg-muted truncate">**%s**</span>  \n\n''',
     '''<h5 class="uk-flex"><a class="uk-link" href="%s"><strong>%s</strong></svg></a>&nbsp;<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" height="16px" width="16px" class="lucide-icon "><use href="#lc-external-link"></use></h5>  \n\n'''
 )
 
-# %% ../nbs/05_flakes.ipynb 83
+# %% ../nbs/05_flakes.ipynb 82
 def _render_flakes_report(dname, wns, l2id):
     tag = _tag('flakes report')
     dlnk, s = '', f"{tag}\n"
@@ -99,10 +99,10 @@ def _render_flakes_report(dname, wns, l2id):
         s += '\n'
     return s, tag
 
-# %% ../nbs/05_flakes.ipynb 89
+# %% ../nbs/05_flakes.ipynb 88
 get_ipython().xpush(__linked_msgs={})  # WARNING: neither get_ipython (in user_ns) nor ipykernel_helper.xpush are documented
 
-# %% ../nbs/05_flakes.ipynb 95
+# %% ../nbs/05_flakes.ipynb 94
 def _update_linked_msg(content, tag, msgid=''):
     msgid = msgid or find_msg_id()
     linked = find_var('__linked_msgs')
@@ -113,7 +113,7 @@ def _update_linked_msg(content, tag, msgid=''):
             return
     linked[msgid] = add_msg(content)
 
-# %% ../nbs/05_flakes.ipynb 101
+# %% ../nbs/05_flakes.ipynb 100
 def add_flakes(
     dname:str='',  # Dialog to check; defaults to current dialog
     wtypes:str=_ALL # comma separated list of warning types to include; defaults to all
