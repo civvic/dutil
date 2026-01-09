@@ -4,6 +4,20 @@
 __all__ = ['as_tuple', 'ListReporter', 'check_flakes', 'add_flakes', 'show_flakes']
 
 # %% ../nbs/05_flakes.ipynb
+import re
+from collections import defaultdict
+from IPython.display import Markdown
+from itertools import repeat
+from pathlib import Path
+from urllib.parse import quote_plus
+import fastcore.all as FC
+import pyflakes
+from pyflakes.reporter import Reporter
+from pyflakes.messages import Message
+from pyflakes.api import check as _check
+from dialoghelper.core import find_msgs, find_dname, find_msg_id, find_var, read_msg, update_msg, add_msg
+
+# %% ../nbs/05_flakes.ipynb
 @FC.patch
 def as_tuple(self: Message): return type(self).__name__, self.filename, (self.lineno, self.col+1), self.message %self.message_args, self.message_args
 

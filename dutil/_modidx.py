@@ -28,4 +28,5 @@ d = { 'settings': { 'branch': 'main',
                               'dutil.flakes._warningtypes': ('flakes.html#_warningtypes', 'dutil/flakes.py'),
                               'dutil.flakes.add_flakes': ('flakes.html#add_flakes', 'dutil/flakes.py'),
                               'dutil.flakes.as_tuple': ('flakes.html#as_tuple', 'dutil/flakes.py'),
-                              'dutil.flakes.check_flakes': ('flakes.html#check_flakes', 'dutil/flakes.py')}}}
+                              'dutil.flakes.check_flakes': ('flakes.html#check_flakes', 'dutil/flakes.py'),
+                              'dutil.flakes.show_flakes': ('flakes.html#show_flakes', 'dutil/flakes.py')}}}
