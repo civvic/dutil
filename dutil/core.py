@@ -7,13 +7,13 @@ __all__ = ['setup_dialog', 'solveit_version', 'in_dialog', 'get_caller_globals',
            'link_msg', 'setup_ns', 'info', 'add_info', 'summarize', 'get_tool_names', 'add_tools_card']
 
 # %% ../nbs/00_core.ipynb
+from collections import defaultdict
 import re
 import sys
 import inspect
 import uuid
-from typing import Any
+from typing import Any, Mapping
 import fastcore.all as FC
-from fastcore.xtras import is_listy
 import dialoghelper
 from dialoghelper.core import _find_frame_dict, add_msg, mk_toollist, find_msg_id, is_usable_tool, read_msg, find_var, update_msg
 from fastgit import Git
@@ -133,23 +133,32 @@ def add_info(msgid:str=''):
 def summarize(target, context): pass
 
 # %% ../nbs/00_core.ipynb
-def get_tool_names(ns=None, exclude=None, only_exported=False, exclude_private=True):
-    "Return the names of all tools in namespace `ns` or current dialog."
-    ns = ns or _find_frame_dict('__msg_id')
+def get_tool_names(
+    ns:Mapping=None,  # module or mapping; None uses IPython user namespace
+    exclude:Mapping|list[str]=None,  # module/mapping (recursively scanned) or list of symbol names to exclude
+    only_exported:bool=False,  # if ns is a module, only include symbols in __all__
+    exclude_private:bool=True  # exclude symbols starting with '_'
+) -> dict[str,list[str]]:  # module name -> list of tool names
+    "Return dict mapping module names to lists of usable tool names from namespace ns (or IPython user namespace if None)."
     exports = set(getattr(ns, '__all__', []))
-    if exclude: exclude = set(get_tool_names(exclude) if not is_listy(exclude) else exclude)
     if inspect.ismodule(ns): ns = vars(ns)
+    if not ns: ns = get_ipython().user_ns
+    if exclude: exclude = set(sum(get_tool_names(exclude).values(), []) if not FC.is_listy(exclude) else exclude)
+    res = defaultdict(list)
     for k,v in ns.items():
         if exclude_private and k[0] == '_': continue
         if only_exported and k not in exports: continue
         if exclude and k in exclude: continue
         if not hasattr(__builtins__, k) and callable(v):
-            try: 
-                if is_usable_tool(v): yield k
+            try:
+                if is_usable_tool(v): 
+                    if inspect.isclass(v) and '__call__' not in v.__dict__: continue
+                    res[getattr(v, '__module__', 'unknown')].append(k)
             except Exception: pass
+    return dict(res)
 
 # %% ../nbs/00_core.ipynb
 def add_tools_card(ns=None):
     "Add a message with all tools in namespace `ns` or caller globals"
-    ns = ns or _find_frame_dict('__msg_id')
+    ns = ns or get_ipython().user_ns
     link_msg(mk_toollist(ns[_] for _ in get_tool_names(ns)))
