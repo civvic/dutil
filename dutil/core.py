@@ -4,7 +4,8 @@
 
 # %% auto 0
 __all__ = ['setup_dialog', 'solveit_version', 'in_dialog', 'get_caller_globals', 'gen_id', 'at_', 'get_output', 'get_tag',
-           'link_msg', 'setup_ns', 'info', 'add_info', 'summarize', 'get_tool_names', 'add_tools_card']
+           'link_msg', 'setup_ns', 'info', 'add_info', 'summarize', 'get_tool_names', 'show_tool_names',
+           'add_tools_card']
 
 # %% ../nbs/00_core.ipynb
 from collections import defaultdict
@@ -158,7 +159,16 @@ def get_tool_names(
     return dict(res)
 
 # %% ../nbs/00_core.ipynb
+FC.delegates(get_tool_names)
+def show_tool_names(*args, **kwargs):
+    for mn,syms in get_tool_names(*args, **kwargs).items():
+        print(mn)
+        print('  ', ', '.join(syms))
+
+# %% ../nbs/00_core.ipynb
 def add_tools_card(ns=None):
     "Add a message with all tools in namespace `ns` or caller globals"
     ns = ns or get_ipython().user_ns
-    link_msg(mk_toollist(ns[_] for _ in get_tool_names(ns)))
+    mod2tool = get_tool_names(ns)
+    content = '\n\n'.join(f"## {mod}\n\n{mk_toollist(ns[t] for t in tools)}" for mod,tools in mod2tool.items())
+    link_msg(content)
