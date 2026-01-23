@@ -5,19 +5,20 @@
 # %% auto 0
 __all__ = ['setup_dialog', 'solveit_version', 'in_dialog', 'get_caller_globals', 'next_dup', 'next_filename', 'gen_id', 'at_',
            'setup_ns', 'info', 'add_info', 'summarize', 'get_output', 'get_tag', 'link_msg', 'get_tool_names',
-           'show_tool_names', 'add_tools_card']
+           'show_tool_names', 'add_tools_card', 'empty_dialog_nb', 'find_symbol_msg', 'importdlg']
 
 # %% ../nbs/00_core.ipynb
 import re
 import sys
 import inspect
+import time
 import uuid
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Mapping
 import fastcore.all as FC
 import dialoghelper
-from dialoghelper.core import _find_frame_dict, add_msg, mk_toollist, find_msg_id, is_usable_tool, read_msg, find_var, update_msg
+from dialoghelper.core import _find_frame_dict, add_msg, mk_toollist, find_msg_id, is_usable_tool, read_msg, find_var, update_msg, find_msgs, msg_idx, run_msg, toggle_header, ast_py
 from fastgit import Git
 
 # %% ../nbs/00_core.ipynb
@@ -103,16 +104,16 @@ setup_dialog = setup_ns
 # %% ../nbs/00_core.ipynb
 def info():
     "Returns information about the dialog"
-    ver = f'''Solveit version: **{solveit_version()}**  
+    ver = f"""Solveit version: **{solveit_version()}**  
 dialoghelper version: **{dialoghelper.__version__}**  
-'''
+"""
     gs = ''
     g = Git('.')
     if g.exists:
         br, *chngs = g('status', '-bs')
-        gs = f'''git branch: **{br.split()[-1]}**  
+        gs = f"""git branch: **{br.split()[-1]}**  
 git changes: {chngs}  
-'''
+"""
     return ver + gs
 
 # %% ../nbs/00_core.ipynb
@@ -195,3 +196,67 @@ def add_tools_card(ns=None):
     mod2tool = get_tool_names(ns)
     content = '\n\n'.join(f"## {mod}\n\n{mk_toollist(ns[t] for t in tools)}" for mod,tools in mod2tool.items())
     link_msg(content)
+
+# %% ../nbs/00_core.ipynb
+def empty_dialog_nb() -> str:
+    "Return a minimal dialog notebook json"
+    return '''
+{
+"cells": [],
+"metadata": {
+"solveit_dialog_mode": "learning",
+"solveit_ver": 2
+},
+"nbformat": 4,
+"nbformat_minor": 5
+}
+'''
+
+# %% ../nbs/00_core.ipynb
+def find_symbol_msg(
+    dname: str,  # dialog to look symbol for; default to current dialog
+    sym: str  # symbol name
+) -> dict:
+    "Find last message in dname containing symbol definition (at module level)"
+    msgs = find_msgs(dname=dname, include_meta=True)
+    for m in reversed(msgs):
+        if m.msg_type != 'code': continue
+        root = ast_py(m.content)
+        for node in root.find_all(pattern='def $FUNC($$$)'):
+            if node.field('name').text() == sym: return m
+        for node in root.find_all(pattern='class $CLASS'):
+            if node.field('name').text() == sym: return m
+        for node in root.find_all(pattern='$VAR = $$$'):
+            if node.field('left').text() == sym: return m
+    return None
+
+# %% ../nbs/00_core.ipynb
+def importdlg(dname:str='', syms:list[str]=None, ids:list[str]=None, re_include:str=None, re_exclude:str=None, run:bool=False, header:bool=False, heading_collapsed:bool=False):
+    "Import by symbols, ids, regex filter, or all messages"
+    msg_ids,to_import,seen = [],[],set()
+    if syms or ids:
+        if syms:
+            for sym in syms:
+                m = find_symbol_msg(dname, sym)
+                if m and m.id not in seen: to_import.append(m); seen.add(m.id)
+        if ids:
+            msgs = find_msgs(dname=dname, include_meta=True, include_output=True)
+            for m in msgs:
+                if m.id in ids and m.id not in seen: to_import.append(m); seen.add(m.id)
+        to_import.sort(key=lambda m: msg_idx(m.id, dname))
+        for m in to_import: msg_ids.append(add_msg(m.content, msg_type=m.msg_type, output=m.output, time_run=m.time_run, is_exported=m.is_exported, skipped=m.skipped, pinned=m.pinned, i_collapsed=m.i_collapsed, o_collapsed=m.o_collapsed, heading_collapsed=m.heading_collapsed))
+    else:
+        msgs = find_msgs(dname=dname, include_meta=True, include_output=True)
+        if re_include: msgs = [m for m in msgs if re.search(re_include, m.content + m.output, re.MULTILINE | re.DOTALL)]
+        if re_exclude: msgs = [m for m in msgs if not re.search(re_exclude, m.content + m.output, re.MULTILINE | re.DOTALL)]
+        for m in msgs:
+            if m.id not in seen: msg_ids.append(add_msg(m.content, msg_type=m.msg_type, output=m.output, time_run=m.time_run, is_exported=m.is_exported, skipped=m.skipped, pinned=m.pinned, i_collapsed=m.i_collapsed, o_collapsed=m.o_collapsed, heading_collapsed=m.heading_collapsed)); seen.add(m.id)
+    if header and msg_ids: 
+        hdrid = add_msg(f"## Imported from {dname}", placement='add_before', id=msg_ids[0])
+        msg_ids.insert(0, hdrid)
+        msg_ids.append(add_msg("## ----", id=msg_ids[-1]))
+    time.sleep(0.5)
+    if run and msg_ids: run_msg(','.join(msg_ids))
+    time.sleep(0.1)
+    if heading_collapsed and header: toggle_header(hdrid)
+    return msg_ids
