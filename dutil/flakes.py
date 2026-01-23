@@ -5,10 +5,12 @@ __all__ = ['IMPORTS', 'VARS', 'ListReporter', 'get_tagged_source', 'check_source
            'show_flakes']
 
 # %% ../nbs/05_flakes.ipynb
+import re
 from collections import defaultdict
+from io import StringIO
+from pathlib import Path
 from IPython.display import Markdown
 from itertools import repeat
-from pathlib import Path
 from urllib.parse import quote_plus
 import fastcore.all as FC
 import pyflakes
@@ -20,12 +22,24 @@ from .core import link_msg
 
 # %% ../nbs/05_flakes.ipynb
 @FC.patch
-def as_tuple(self: Message): return type(self).__name__, self.filename, (self.lineno, self.col+1), self.message %self.message_args, self.message_args
+def as_tuple(self: Message): return type(self).__name__, self.filename, (self.lineno, self.col+1), self.message % self.message_args, self.message_args
 
 # %% ../nbs/05_flakes.ipynb
 class ListReporter(Reporter):
-    def __init__(self): self.warnings = FC.L(); super().__init__(None, None)
+    def __init__(self):
+        self.warnings = FC.L(); super().__init__(None, None)
+        super().__init__(StringIO(), StringIO())
     def flake(self, message): self.warnings.append(message.as_tuple())
+    def close(self): self._stderr.close(); self._stdout.close()
+    def unexpectedError(self, filename, msg): self.warnings.append(('UnexpectedError', filename, (0,0), msg, ()))
+    def syntaxError(self, filename, msg, lineno, offset, text):
+        line = None if text is None else text.splitlines()[-1]
+        lineno = max(lineno or 0, 1)
+        if offset is not None: offset = max(offset, 1)
+        rng, s = (lineno, offset or 0), ''
+        if line is not None:
+           s = f"{line}\n{re.sub(r'\S', ' ', line[:offset-1])+"^\n" if offset is not None else ''}"
+        self.warnings.append(('SyntaxError', filename, rng, msg, (s,)))
 
 # %% ../nbs/05_flakes.ipynb
 def _line2msgid(codes, msgids):
@@ -39,9 +53,14 @@ def _line2msgid(codes, msgids):
 
 # %% ../nbs/05_flakes.ipynb
 def get_tagged_source(
-    msgs:list  # List of message dicts with 'content' and 'id' keys
+    msgs:list=None,  # list of message dicts with 'content' and 'id' keys
+    all:bool=False,  # include all messages, not just exported ones
+    dname:str=''  # dialog name (relative like 'data/test' or absolute, starting with '/'), defaults to current
 ) -> tuple[str, list]:  # Returns (source, line_mapping) where line_mapping maps each source line to (code_line, line_in_msg, msgid)
     "Concatenate message contents with msgid markers"
+    if not msgs:
+        msgs = find_msgs(msg_type='code', dname=dname)
+        msgs = msgs if all else msgs.filter(lambda x: x.is_exported)
     l2id = _line2msgid(msgs.attrgot('content'), msgs.attrgot('id'))
     return '\n'.join(l2id.itemgot(0)), l2id
 
@@ -71,15 +90,15 @@ def check_source_flakes(
     return reprt.warnings
 
 # %% ../nbs/05_flakes.ipynb
-def _get_flakes(dname='', wtypes=''):
-    cds = find_msgs(msg_type='code', dname=dname)
-    src, l2id = get_tagged_source(cds.filter(lambda x: x.is_exported))
+def _get_flakes(dname='', wtypes='', all=False):
+    src, l2id = get_tagged_source(all=all, dname=dname)
     ws = check_source_flakes(src, Path(dname or find_dname()).name)
     if wtypes: 
         ts = set(FC.L(wtypes.split(',')).map(str.strip))
         ws = ws.filter(lambda w: w[0] in ts)
     return l2id, ws
 
+# %% ../nbs/05_flakes.ipynb
 def check_flakes(
     dname:str='',  # dialog name (relative like 'data/test' or absolute), defaults to current
     wtypes:str=''  # filter: IMPORTS, VARS, or comma-separated warning types like 'UnusedImport,UndefinedName'; defaults to all types
