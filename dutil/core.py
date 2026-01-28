@@ -190,11 +190,12 @@ def show_tool_names(*args, **kwargs):
         print('  ', ', '.join(syms))
 
 # %% ../nbs/00_core.ipynb #7fca2fc7
-def add_tools_card(ns=None):
+@FC.delegates(get_tool_names)
+def add_tools_card(ns:Mapping=None, **kwargs):
     "Add a message with all tools in namespace `ns` or caller globals"
     ns = ns or get_ipython().user_ns
-    mod2tool = get_tool_names(ns)
-    content = '\n\n'.join(f"## {mod}\n\n{mk_toollist(ns[t] for t in tools)}" for mod,tools in mod2tool.items())
+    mod2tool = get_tool_names(ns, **kwargs)
+    content = '\n\n'.join(f"## {mod}\n\n{mk_toollist(getattr(ns, t) if inspect.ismodule(ns) else ns[t] for t in tools)}" for mod,tools in mod2tool.items())
     link_msg(content)
 
 # %% ../nbs/00_core.ipynb #0f89451e
