@@ -5,7 +5,7 @@
 # %% auto #0
 __all__ = ['setup_dialog', 'solveit_version', 'in_dialog', 'get_caller_globals', 'next_dup', 'next_filename', 'gen_id', 'at_',
            'setup_ns', 'info', 'add_info', 'summarize', 'get_output', 'get_tag', 'link_msg', 'get_tool_names',
-           'show_tool_names', 'add_tools_card', 'empty_dialog_nb', 'find_symbol_msg', 'importdlg']
+           'show_tool_names', 'add_tools_card', 'ctxusage', 'empty_dialog_nb', 'find_symbol_msg', 'importdlg']
 
 # %% ../nbs/00_core.ipynb #e72f67fd
 import re
@@ -197,6 +197,13 @@ def add_tools_card(ns:Mapping=None, **kwargs):
     mod2tool = get_tool_names(ns, **kwargs)
     content = '\n\n'.join(f"## {mod}\n\n{mk_toollist(getattr(ns, t) if inspect.ismodule(ns) else ns[t] for t in tools)}" for mod,tools in mod2tool.items())
     link_msg(content)
+
+# %% ../nbs/00_core.ipynb #2b349e8c
+def ctxusage(id:str='', dname:str=''):
+    msgs = find_msgs(include_output=False, dname=dname)
+    id = id or find_msg_id()
+    pos = msg_idx(id)
+    return sum(m.input_tokens + m.output_tokens for m in msgs[:pos] if not m.skipped)
 
 # %% ../nbs/00_core.ipynb #0f89451e
 def empty_dialog_nb() -> str:
