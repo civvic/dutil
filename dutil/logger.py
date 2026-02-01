@@ -25,7 +25,7 @@ class Logger:
         if not self.msgid: return
         del_msg(self.msgid)
         self.setup('', clear)
-    def __call__(self, msg): 
+    def __call__(self, msg, *args, **kwargs): 
         s = f"[{datetime.now():%H:%M:%S}] {msg}"
         self.logs.insert(0, s)
         if self.msgid:
