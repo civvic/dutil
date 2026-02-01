@@ -56,4 +56,10 @@ d = { 'settings': { 'branch': 'main',
                                 'dutil.isolated._get_nb': ('isolated.html#_get_nb', 'dutil/isolated.py'),
                                 'dutil.isolated._isolate_nb': ('isolated.html#_isolate_nb', 'dutil/isolated.py'),
                                 'dutil.isolated._safe_isolated_paths': ('isolated.html#_safe_isolated_paths', 'dutil/isolated.py'),
-                                'dutil.isolated.isolate': ('isolated.html#isolate', 'dutil/isolated.py')}}}
+                                'dutil.isolated.isolate': ('isolated.html#isolate', 'dutil/isolated.py')},
+            'dutil.logger': { 'dutil.logger.Logger': ('logger.html#logger', 'dutil/logger.py'),
+                              'dutil.logger.Logger.__call__': ('logger.html#logger.__call__', 'dutil/logger.py'),
+                              'dutil.logger.Logger.__init__': ('logger.html#logger.__init__', 'dutil/logger.py'),
+                              'dutil.logger.Logger.clear': ('logger.html#logger.clear', 'dutil/logger.py'),
+                              'dutil.logger.Logger.setup': ('logger.html#logger.setup', 'dutil/logger.py'),
+                              'dutil.logger.Logger.show': ('logger.html#logger.show', 'dutil/logger.py')}}}
