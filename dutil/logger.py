@@ -11,7 +11,7 @@ from fastcore.all import patch
 from datetime import datetime
 from anyio import sleep
 from anyio.from_thread import start_blocking_portal
-from dialoghelper.core import update_msg, add_msg, del_msg, read_msg, find_msg_id, msg_idx
+from dialoghelper.core import update_msg, add_msg, del_msg, read_msg, find_msg_id, msg_idx, find_dname
 
 # %% ../nbs/01_logger.ipynb #2ff25c6f
 _notfound = {'msg': {}}
@@ -37,12 +37,12 @@ class Logger:
         self.logs.clear(); self._s='\u200b'; 
         if self.msgid: update_msg(self.msgid, content=self._s, msg_type='raw')
     def settle(self, to:float=2.0, interval:float=0.1):
-        if self.msgid:
-            thisloc = msg_idx()
+        if logid := self.msgid:
+            dname, thisloc = find_dname(), msg_idx()  # capture dname, find_dname is not threadsafe
             async def _wait():
                 t0 = time.time()
-                while time.time()-t0 < to and msg_idx(self.msgid) != thisloc: await sleep(interval)
-                return msg_idx(self.msgid) == thisloc
+                while time.time()-t0 < to and msg_idx(logid, dname=dname) != thisloc: await sleep(interval)
+                return msg_idx(logid, dname=dname) == thisloc
             with start_blocking_portal() as portal: return portal.call(_wait)
     def __call__(self, msg, *args, **kwargs): 
         dt = datetime.now()
