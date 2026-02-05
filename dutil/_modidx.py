@@ -63,6 +63,7 @@ d = { 'settings': { 'branch': 'main',
                               'dutil.logger.Logger.__call__': ('logger.html#logger.__call__', 'dutil/logger.py'),
                               'dutil.logger.Logger.__init__': ('logger.html#logger.__init__', 'dutil/logger.py'),
                               'dutil.logger.Logger.clear': ('logger.html#logger.clear', 'dutil/logger.py'),
+                              'dutil.logger.Logger.settle': ('logger.html#logger.settle', 'dutil/logger.py'),
                               'dutil.logger.Logger.setup': ('logger.html#logger.setup', 'dutil/logger.py'),
                               'dutil.logger.Logger.show': ('logger.html#logger.show', 'dutil/logger.py'),
                               'dutil.logger.findlogtarget': ('logger.html#findlogtarget', 'dutil/logger.py')}}}
