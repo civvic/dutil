@@ -49,7 +49,7 @@ class Logger:
         s = f"[{dt:%H:%M:%S}.{dt.microsecond//1000:03d}] {msg}"
         self.logs.insert(0, s)
         if self.msgid:
-            self._s = f"\u200b{s}\n" + (self._s if self._s != '\u200b' else '')
+            self._s = f"\u200b{s}" + (f"\n{self._s}" if self._s != '\u200b' else '')
             update_msg(self.msgid, content=self._s)
         else: print(s, flush=True)
 
