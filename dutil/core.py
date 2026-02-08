@@ -4,16 +4,12 @@
 
 # %% auto #0
 __all__ = ['setup_dialog', 'solveit_version', 'in_dialog', 'get_caller_globals', 'waitpred', 'waitpreda', 'next_dup',
-           'next_filename', 'gen_id', 'at_', 'setup_ns', 'info', 'add_info', 'summarize', 'get_output', 'get_tag',
-           'link_msg', 'get_tool_names', 'show_tool_names', 'add_tools_card', 'ctxusage', 'empty_dialog_nb',
+           'next_filename', 'gen_id', 'at_', 'setup_ns', 'info', 'add_info', 'summarize', 'get_output', 'format_output',
+           'get_tag', 'link_msg', 'get_tool_names', 'show_tool_names', 'add_tools_card', 'ctxusage', 'empty_dialog_nb',
            'find_symbol_msg', 'importdlg']
 
 # %% ../nbs/00_core.ipynb #e72f67fd
-import re
-import sys
-import inspect
-import time
-import uuid
+import re, sys, inspect, time, uuid, json
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Mapping
@@ -150,6 +146,14 @@ FC.delegates(read_msg)
 def get_output(id:str=None, **kwargs) -> list[str]:
     msg = read_msg(0, id=id or find_msg_id())
     return msg.output
+
+# %% ../nbs/00_core.ipynb #7778197a
+_format = get_ipython().display_formatter.format
+
+# %% ../nbs/00_core.ipynb #7051feab
+def format_output(o):
+  d, md = _format(o)
+  return json.dumps([{"data": d, "metadata": md, "output_type": "display_data"}])
 
 # %% ../nbs/00_core.ipynb #1e17ec9b
 _ts, _te = ('<!-- ', '#| '), (' -->', '')
