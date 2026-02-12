@@ -9,21 +9,21 @@ __all__ = ['Logger']
 import json
 from fastcore.all import patch
 from datetime import datetime
-from dialoghelper.core import update_msg, find_msg_id, find_dname
+from dialoghelper.core import update_msg, find_msg_id, read_msg
 
 # %% ../nbs/01_logger.ipynb #461b9dd1
 class Logger:
     "Timestamped logger that uses a cell's output as sink"
     msgid:str; dname:str
-    def __init__(self, id:str='', dname:str=''): self.setup(id, dname, True)
+    def __init__(self, id:str='', dname:str='', clear:bool=True): self.setup(id, dname, clear if not dname else False)
     def setup(self, id:str='', dname:str='', clear:bool=False): 
         "Setup logger for current message cell"
-        self.dname = dname or find_dname().removeprefix('/')
-        self.msgid = id or find_msg_id()
+        self.dname, self.msgid = dname, id or find_msg_id()
         if clear: self.clear()
+        self._s = read_msg(0, id=self.msgid, dname=self.dname).output if dname else getattr(self, '_s', '')
     def clear(self): 
         "Clear all log entries and output"
-        self._s=''; update_msg(self.msgid, output='')
+        self._s=''; update_msg(self.msgid, output='', dname=self.dname)
     @property
     def logs(self): return self._s.splitlines()#read_msg(0, self.msgid).output.splitlines()
     def __str__(self): return self._s#read_msg(0, self.msgid).output
@@ -31,17 +31,19 @@ class Logger:
         "Add timestamped message to log"
         dt = datetime.now(); s = f"[{dt:%H:%M:%S}.{dt.microsecond//1000:03d}] {msg}"
         # msg_insert_line(self.msgid, 0, s, dname=self.dname, update_output=True)  # bug
+        if self.dname: self._s = read_msg(0, id=self.msgid, dname=self.dname).output
         self._s = s + (f"\n{self._s}" if self._s != '' else '')
         out = '[{"name": "stdout", "output_type": "stream", "text": %s}]' % json.dumps(self._s)
-        update_msg(self.msgid, output=out)
+        update_msg(self.msgid, output=out, dname=self.dname)
 
 # %% ../nbs/01_logger.ipynb #23b4e5ca
 @patch
 def show(self:Logger, clear:bool=False):
     "Display log in current cell, optionally clearing first"
-    if self.msgid != find_msg_id():
-        oldid = self.msgid
-        self.setup()
-        update_msg(oldid, output='')
-    if clear: self.clear()
+    if not self.dname:
+        if self.msgid != find_msg_id():
+            oldid = self.msgid
+            self.setup()
+            update_msg(oldid, output='', dname=self.dname)
+        if clear: self.clear()
     print(self._s)
