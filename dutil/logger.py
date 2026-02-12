@@ -9,31 +9,31 @@ __all__ = ['Logger']
 import json
 from fastcore.all import patch
 from datetime import datetime
-from dialoghelper.core import update_msg, find_msg_id
+from dialoghelper.core import update_msg, find_msg_id, find_dname
 
-# %% ../nbs/01_logger.ipynb #bc9d711d
+# %% ../nbs/01_logger.ipynb #461b9dd1
 class Logger:
-    "Timestamped logger that updates a cell's output in real-time"
-    logs:list; msgid:str; _s:str
-    def __init__(self): self.logs = []; self.setup(True)
-    def setup(self, clear:bool=False): 
+    "Timestamped logger that uses a cell's output as sink"
+    msgid:str; dname:str
+    def __init__(self, id:str='', dname:str=''): self.setup(id, dname, True)
+    def setup(self, id:str='', dname:str='', clear:bool=False): 
         "Setup logger for current message cell"
-        self.msgid = find_msg_id()
+        self.dname = dname or find_dname().removeprefix('/')
+        self.msgid = id or find_msg_id()
         if clear: self.clear()
     def clear(self): 
         "Clear all log entries and output"
-        self.logs.clear(); self._s=''; 
-        update_msg(self.msgid, output='')
-    def __str__(self): return self._s
+        self._s=''; update_msg(self.msgid, output='')
+    @property
+    def logs(self): return self._s.splitlines()#read_msg(0, self.msgid).output.splitlines()
+    def __str__(self): return self._s#read_msg(0, self.msgid).output
     def __call__(self, msg, *args, **kwargs): 
         "Add timestamped message to log"
-        dt = datetime.now()
-        s = f"[{dt:%H:%M:%S}.{dt.microsecond//1000:03d}] {msg}"
-        self.logs.insert(0, s)
+        dt = datetime.now(); s = f"[{dt:%H:%M:%S}.{dt.microsecond//1000:03d}] {msg}"
+        # msg_insert_line(self.msgid, 0, s, dname=self.dname, update_output=True)  # bug
         self._s = s + (f"\n{self._s}" if self._s != '' else '')
         out = '[{"name": "stdout", "output_type": "stream", "text": %s}]' % json.dumps(self._s)
         update_msg(self.msgid, output=out)
-
 
 # %% ../nbs/01_logger.ipynb #23b4e5ca
 @patch
