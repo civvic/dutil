@@ -7,9 +7,11 @@ __all__ = ['Logger']
 
 # %% ../nbs/01_logger.ipynb #38e6b396
 import json
-from fastcore.all import patch
 from datetime import datetime
+from html import unescape
+from fastcore.all import patch
 from dialoghelper.core import update_msg, find_msg_id, read_msg
+
 
 # %% ../nbs/01_logger.ipynb #461b9dd1
 class Logger:
@@ -20,7 +22,7 @@ class Logger:
         "Setup logger for current message cell"
         self.dname, self.msgid = dname, id or find_msg_id()
         if clear: self.clear()
-        self._s = read_msg(0, id=self.msgid, dname=self.dname).output if dname else getattr(self, '_s', '')
+        self._s = unescape(read_msg(0, id=self.msgid, dname=self.dname).output) if dname else getattr(self, '_s', '')
     def clear(self): 
         "Clear all log entries and output"
         self._s=''; update_msg(self.msgid, output='', dname=self.dname)
@@ -31,7 +33,7 @@ class Logger:
         "Add timestamped message to log"
         dt = datetime.now(); s = f"[{dt:%H:%M:%S}.{dt.microsecond//1000:03d}] {msg}"
         # msg_insert_line(self.msgid, 0, s, dname=self.dname, update_output=True)  # bug
-        if self.dname: self._s = read_msg(0, id=self.msgid, dname=self.dname).output
+        if self.dname: self._s = unescape(read_msg(0, id=self.msgid, dname=self.dname).output)
         self._s = s + (f"\n{self._s}" if self._s != '' else '')
         out = '[{"name": "stdout", "output_type": "stream", "text": %s}]' % json.dumps(self._s)
         update_msg(self.msgid, output=out, dname=self.dname)
