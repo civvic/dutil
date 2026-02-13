@@ -6,20 +6,22 @@
 __all__ = ['setup_dialog', 'solveit_version', 'in_dialog', 'get_caller_globals', 'get_tag', 'has_tag', 'find_tag', 'get_linked',
            'link_msg', 'hydrate', 'nq', 'waitpred', 'waitpreda', 'next_dup', 'next_filename', 'gen_id', 'at_',
            'setup_ns', 'info', 'add_info', 'summarize', 'get_output', 'format_output', 'get_tool_names',
-           'show_tool_names', 'add_tools_card', 'dialog_link', 'ctxusage', 'empty_dialog_nb', 'find_symbol_msg',
-           'importdlg']
+           'show_tool_names', 'add_tools_card', 'dlg_export', 'dialog_link', 'ctxusage', 'empty_dialog_nb',
+           'find_symbol_msg', 'importdlg']
 
 # %% ../nbs/00_core.ipynb #e72f67fd
 import re, sys, inspect, time, uuid, json
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Mapping
+from fastcore.all import IN_NOTEBOOK
 from fastcore.meta import delegates
 from fastcore.xtras import is_listy
+from nbdev import nbdev_export
 from anyio import sleep
 from anyio.from_thread import start_blocking_portal
 import dialoghelper
-from dialoghelper.core import _find_frame_dict, add_msg, mk_toollist, find_msg_id, is_usable_tool, read_msg, find_var, update_msg, find_msgs, msg_idx, run_msg, toggle_header, ast_py
+from dialoghelper.core import _find_frame_dict, add_msg, mk_toollist, find_msg_id, is_usable_tool, read_msg, find_var, update_msg, find_msgs, msg_idx, run_msg, toggle_header, ast_py, find_dname
 from fastgit import Git
 
 # %% ../nbs/00_core.ipynb #6389d58d
@@ -32,7 +34,7 @@ def solveit_version():
 # %% ../nbs/00_core.ipynb #85a58913
 def in_dialog():
     "Check if the code is running in a solveit dialog"
-    return bool(solveit_version() and dialoghelper.find_dname() and dialoghelper.find_msg_id())
+    return bool(solveit_version() and find_dname() and find_msg_id())
 
 # %% ../nbs/00_core.ipynb #a0c6cf33
 def get_caller_globals(): 
@@ -292,6 +294,12 @@ def add_tools_card(ns:Mapping=None, **kwargs):
     mod2tool = get_tool_names(ns, **kwargs)
     content = '\n\n'.join(f"## {mod}\n\n{mk_toollist(getattr(ns, t) if inspect.ismodule(ns) else ns[t] for t in tools)}" for mod,tools in mod2tool.items())
     link_msg(content)
+
+# %% ../nbs/00_core.ipynb #867a1670
+def dlg_export(dname:str=''):
+    if IN_NOTEBOOK:
+        dlg_path = Path(dname or find_dname()).with_suffix(".ipynb").name
+        nbdev_export(dlg_path)
 
 # %% ../nbs/00_core.ipynb #f6dfc50c
 def dialog_link(
