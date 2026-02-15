@@ -5,13 +5,14 @@
 # %% auto #0
 __all__ = ['setup_dialog', 'solveit_version', 'in_dialog', 'get_caller_globals', 'get_tag', 'has_tag', 'find_tag', 'get_linked',
            'link_msg', 'hydrate', 'nq', 'waitpred', 'waitpreda', 'next_dup', 'next_filename', 'gen_id', 'at_',
-           'setup_ns', 'info', 'add_info', 'summarize', 'get_output', 'format_output', 'get_tool_names',
+           'setup_ns', 'info', 'add_info', 'summarize', 'get_output', 'format_output', 'find_var', 'get_tool_names',
            'show_tool_names', 'add_tools_card', 'dlg_export', 'dialog_link', 'ctxusage', 'empty_dialog_nb',
            'find_symbol_msg', 'importdlg']
 
 # %% ../nbs/00_core.ipynb #e72f67fd
 import re, sys, inspect, time, uuid, json
 from collections import defaultdict
+from inspect import Parameter
 from pathlib import Path
 from typing import Any, Mapping
 from fastcore.all import IN_NOTEBOOK
@@ -21,7 +22,8 @@ from nbdev import nbdev_export
 from anyio import sleep
 from anyio.from_thread import start_blocking_portal
 import dialoghelper
-from dialoghelper.core import _find_frame_dict, add_msg, mk_toollist, find_msg_id, is_usable_tool, read_msg, find_var, update_msg, find_msgs, msg_idx, run_msg, toggle_header, ast_py, find_dname
+from dialoghelper.core import _find_frame_dict, add_msg, mk_toollist, find_msg_id, is_usable_tool, read_msg, update_msg, find_msgs, msg_idx, run_msg, toggle_header, ast_py, find_dname
+from dialoghelper.core import find_var as _find_var
 from fastgit import Git
 
 # %% ../nbs/00_core.ipynb #6389d58d
@@ -253,6 +255,13 @@ delegates(_format)
 def format_output(o, **kwargs):
   d, md = _format(o, **kwargs)
   return json.dumps([{"data": d, "metadata": md, "output_type": "display_data"}])
+
+# %% ../nbs/00_core.ipynb #3e9d6724
+def find_var(var:str, default:Any=Parameter.empty, raiseex:bool=False):
+    try: return _find_var(var)
+    except Exception:
+        if raiseex: raise
+        return default
 
 # %% ../nbs/00_core.ipynb #2f133f3b
 def get_tool_names(
