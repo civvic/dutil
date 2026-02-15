@@ -11,33 +11,34 @@ from datetime import datetime
 from html import unescape
 from fastcore.all import patch
 from dialoghelper.core import update_msg, find_msg_id, read_msg, find_dname
-
+from .core import set_var
 
 # %% ../nbs/01_logger.ipynb #461b9dd1
 class Logger:
     "Timestamped logger that uses a cell's output as sink"
     msgid:str; dname:str
-    def __init__(self, id:str='', dname:str='', clear:bool=True): 
+    def __init__(self, id:str='', dname:str='', clear:bool=True, sym='log'): 
         self.setup(id, dname, clear if not dname else False)
-        print(self._s, end='')
-    def setup(self, id:str='', dname:str='', clear:bool=False): 
+        self.show()
+    def setup(self, id:str='', dname:str='', clear:bool=False, sym='log'): 
         "Setup logger for current message cell"
         curr = find_dname()
         self.dname, self.msgid = dname or curr, id or find_msg_id()
         self._xs = self.dname != curr
         if clear: self.clear()
         self._s = unescape(read_msg(0, id=self.msgid, dname=self.dname).output) if dname else getattr(self, '_s', '')
+        set_var(sym, self, True)
+    def show(self): self.msgid = find_msg_id(); print(self._s, end='')
     def clear(self): 
         "Clear all log entries and output"
         self._s=''; update_msg(self.msgid, output='', dname=self.dname)
     @property
-    def logs(self): return self._s.splitlines()#read_msg(0, self.msgid).output.splitlines()
-    def __str__(self): return self._s#read_msg(0, self.msgid).output
+    def logs(self): return self._s.splitlines()
+    def __repr__(self): return self._s
+    def __str__(self): return self._s
     def __call__(self, msg, *args, **kwargs): 
         "Add timestamped message to log"
         dt = datetime.now(); s = f"[{dt:%H:%M:%S}.{dt.microsecond//1000:03d}] {msg}"
-        # # msg_insert_line(self.msgid, 0, s, dname=self.dname, update_output=True)  # bug
-        # if self._xs: self._s = unescape(read_msg(0, id=self.msgid, dname=self.dname).output)
         self._s = s + (f"\n{self._s}" if self._s != '' else '')
         out = '[{"name": "stdout", "output_type": "stream", "text": %s}]' % json.dumps(self._s)
         update_msg(self.msgid, output=out, dname=self.dname)
