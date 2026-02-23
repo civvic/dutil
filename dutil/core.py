@@ -4,27 +4,30 @@
 
 # %% auto #0
 __all__ = ['setup_dialog', 'solveit_version', 'in_dialog', 'get_caller_globals', 'get_tag', 'has_tag', 'find_tag', 'get_linked',
-           'link_msg', 'hydrate', 'nq', 'waitpred', 'waitpreda', 'next_dup', 'next_filename', 'gen_id', 'at_',
-           'setup_ns', 'info', 'add_info', 'summarize', 'get_output', 'format_output', 'find_var', 'get_tool_names',
-           'show_tool_names', 'add_tools_card', 'dlg_export', 'dialog_link', 'ctxusage', 'empty_dialog_nb',
-           'find_symbol_msg', 'importdlg']
+           'link_msg', 'hydrate', 'waitpred', 'waitpreda', 'next_dup', 'next_filename', 'gen_id', 'at_', 'setup_ns',
+           'info', 'add_info', 'summarize', 'get_output', 'format_output', 'find_var', 'set_var', 'get_tool_names',
+           'show_tool_names', 'mk_ns_toollist', 'add_tools_card', 'nb_path', 'dlg_module', 'dlg_export', 'dialog_link',
+           'ctxusage', 'empty_dialog_nb', 'find_symbol_msg', 'importdlg']
 
 # %% ../nbs/00_core.ipynb #e72f67fd
-import re, sys, inspect, time, uuid, json
+import re, sys, inspect, uuid, json, time
 from collections import defaultdict
 from inspect import Parameter
 from pathlib import Path
 from typing import Any, Mapping
-from fastcore.all import IN_NOTEBOOK
-from fastcore.meta import delegates
-from fastcore.xtras import is_listy
-from nbdev import nbdev_export
+import ipykernel_helper
+from IPython import get_ipython
 from anyio import sleep
 from anyio.from_thread import start_blocking_portal
+from fastcore.imports import in_ipython
+from fastcore.meta import delegates
+from fastcore.xtras import is_listy
 import dialoghelper
-from dialoghelper.core import _find_frame_dict, add_msg, mk_toollist, find_msg_id, is_usable_tool, read_msg, update_msg, find_msgs, msg_idx, run_msg, toggle_header, ast_py, find_dname
-from dialoghelper.core import find_var as _find_var
+from dialoghelper.core import _find_frame_dict, add_msg, find_msg_id, is_usable_tool, read_msg, update_msg, find_msgs, msg_idx, run_msg, toggle_header, ast_py, find_dname
+from dialoghelper.core import find_var as _find_var, set_var as _set_var
+from toolslm.funccall import get_schema
 from fastgit import Git
+
 
 # %% ../nbs/00_core.ipynb #6389d58d
 def solveit_version():
@@ -36,7 +39,7 @@ def solveit_version():
 # %% ../nbs/00_core.ipynb #85a58913
 def in_dialog():
     "Check if the code is running in a solveit dialog"
-    return bool(solveit_version() and find_dname() and find_msg_id())
+    return in_ipython() and bool(solveit_version() and find_dname())
 
 # %% ../nbs/00_core.ipynb #a0c6cf33
 def get_caller_globals(): 
@@ -78,11 +81,11 @@ def get_linked(id:str) -> str:
     return ''
 
 # %% ../nbs/00_core.ipynb #6b6c1b31
-get_ipython().xpush(__linked_msgs={})  # WARNING: ipykernel_helper.xpush is not documented
+if in_dialog(): get_ipython().xpush(__linked_msgs={})
 
 # %% ../nbs/00_core.ipynb #69fd0e09
 delegates(add_msg)
-def link_msg(
+async def link_msg(
     content:str=None,  # Content of the linked message
     id:str=None,  # ID of the message to link to, or current message if not provided
     **kwargs  # Additional keyword arguments for `add_msg` or `update_msg`
@@ -90,52 +93,27 @@ def link_msg(
     "Add or update a message linked to `anchor` message. Note only one linked msg per anchor."
     anchor_id, linked = id or find_msg_id(), find_var('__linked_msgs')
     if linked_id := linked.get(anchor_id):
-        if (msg := read_msg(0, id=linked_id)).get('id','') == linked_id:
+        if (msg := await read_msg(0, id=linked_id)).get('id','') == linked_id:
             tag = get_tag('linkedto', anchor_id, kwargs.get('msg_type', msg.msg_type))
             if content: kwargs['content'] = f"{tag}\n{content}"
-            linked[anchor_id] = update_msg(linked_id, **kwargs)
+            linked[anchor_id] = await update_msg(linked_id, **kwargs)
             return linked[anchor_id]
     tag = get_tag('linkedto', anchor_id, kwargs.get('msg_type', 'note'))
-    linked[anchor_id] = add_msg(f"{tag}\n{content or '.'}", id=anchor_id, **kwargs)
+    linked[anchor_id] = await add_msg(f"{tag}\n{content or '.'}", id=anchor_id, **kwargs)
     return linked[anchor_id]
 
 # %% ../nbs/00_core.ipynb #dab704aa
-def hydrate():
+async def hydrate():
     "Traverse dialog looking for linked messages to update `__linked_msgs`"
     linked = find_var('__linked_msgs')
     linked.clear()
-    msgs = find_msgs(include_meta=True, include_output=False)
+    msgs = await find_msgs(include_meta=True, include_output=False)
     ids = {_.id for _ in msgs}
     for msg in msgs:
         if tag := find_tag(msg.get('content', ''), msg.get('msg_type')):
             k, v = tag.split(': ')
             if k == 'linkedto' and v in ids: linked[v] = msg['id']
     return linked
-
-# %% ../nbs/00_core.ipynb #329b4ad3
-def nq(cmd, *args, **kwargs):
-    """Queue the run of `cmd(*args, **kwargs)` and wait until dialog state settles.
-    
-    Ensures that after each call, the dialog state on the Solveit server is settled
-    before returning. For `run_msg`, polls asynchronously to avoid blocking kernel execution.
-    
-    Note: While this ensures server-side state is settled, the frontend may lag slightly
-    in displaying changes. If messages don't appear immediately, refresh the page or click
-    the green websocket status button. Often, a small time.sleep after this call will alleviate the issue.
-    """
-    res = cmd(*args, **kwargs)
-    if cmd.__name__ == 'run_msg':
-        ids = kwargs.get('ids') if 'ids' in kwargs else (args[0] if args else None)
-        if not ids: ids = find_msg_id()
-        async def poll_exe():
-            while True:
-                msgs = find_msgs(ids=ids, include_meta=True, include_output=False)
-                if all(m.get('time_run') for m in msgs): return
-                await sleep(0.05)
-        with start_blocking_portal() as portal:  portal.call(poll_exe)
-        return res
-    if cmd.__name__ in ('add_msg', 'update_msg', 'del_msg'): return res  # Already settled by the time the call returns
-    return res  # Unknown command, just return
 
 # %% ../nbs/00_core.ipynb #b9ae31c1
 def waitpred(pred, timeout=0.5, interval=0.05):
@@ -146,11 +124,11 @@ def waitpred(pred, timeout=0.5, interval=0.05):
         return pred()
     with start_blocking_portal() as portal: return portal.call(_wait)
 
-# %% ../nbs/00_core.ipynb #3a8eac98
+# %% ../nbs/00_core.ipynb #c334d7b2
 async def waitpreda(pred, timeout=0.5, interval=0.05):
     "Async wait until `pred` is True or `timeout` is reached without blocking the kernel"
     t0 = time.time()
-    while not pred():
+    while not await pred():
         if time.time() - t0 > timeout: return False
         await sleep(0.1)
     return True
@@ -207,13 +185,13 @@ def at_(
     return o
 
 # %% ../nbs/00_core.ipynb #60e5b6e0
-def setup_ns(ns=None, **kwargs):
+async def setup_ns(ns=None, **kwargs):
     "Add `kwargs` to the namespace `ns` or current dialog"
     ns = ns or _find_frame_dict('__msg_id')
     # lc = list(locals().items())[1:]
     thisid = find_msg_id()
     for k,v in kwargs.items(): ns[k] = v
-    msgid = link_msg('\n\n'.join(f"{k} = {v}" for k,v in kwargs.items()))
+    msgid = await link_msg('\n\n'.join(f"{k} = {v}" for k,v in kwargs.items()))
     print(thisid, msgid)
 
 setup_dialog = setup_ns
@@ -234,26 +212,26 @@ git changes: {chngs}
     return ver + gs
 
 # %% ../nbs/00_core.ipynb #e2bc850b
-def add_info(msgid:str=''):
+async def add_info(msgid:str=''):
     "Add a message with information about the dialog"
-    return link_msg(info(), id=msgid)
+    return await link_msg(info(), id=msgid)
 
 # %% ../nbs/00_core.ipynb #8e88bb43
 def summarize(target, context): pass
 
 # %% ../nbs/00_core.ipynb #1fb709a6
-delegates(read_msg)
-def get_output(id:str=None, **kwargs) -> list[str]:
-    msg = read_msg(0, id=id or find_msg_id())
+@delegates(read_msg)
+async def get_output(id:str=None, **kwargs) -> list[str]:
+    msg = await read_msg(0, id=id or find_msg_id())
     return msg.output
 
 # %% ../nbs/00_core.ipynb #7778197a
-_format = get_ipython().display_formatter.format
+_format = get_ipython().display_formatter.format if in_dialog() else None
 
 # %% ../nbs/00_core.ipynb #7051feab
 delegates(_format)
 def format_output(o, **kwargs):
-  d, md = _format(o, **kwargs)
+  d, md = _format(o, **kwargs) if _format else ('', {})
   return json.dumps([{"data": d, "metadata": md, "output_type": "display_data"}])
 
 # %% ../nbs/00_core.ipynb #3e9d6724
@@ -262,6 +240,15 @@ def find_var(var:str, default:Any=Parameter.empty, raiseex:bool=False):
     except Exception:
         if raiseex: raise
         return default
+find_var.notfound = Parameter.empty
+
+# %% ../nbs/00_core.ipynb #2eb66a52
+def set_var(var:str, val, force:bool=False, user_ns:bool=True):
+    try: return _set_var(var, val)
+    except Exception:
+        if not force: raise
+    if user_ns: get_ipython().push({var: val})
+    else: inspect.currentframe().f_back.f_back.f_globals[var] = val
 
 # %% ../nbs/00_core.ipynb #2f133f3b
 def get_tool_names(
@@ -275,7 +262,7 @@ def get_tool_names(
     if inspect.ismodule(ns): ns = vars(ns)
     if not ns: ns = get_ipython().user_ns
     if exclude: exclude = set(sum(get_tool_names(exclude).values(), []) if not is_listy(exclude) else exclude)
-    res = defaultdict(list)
+    res, vis = defaultdict(list), defaultdict(set)
     for k,v in ns.items():
         if exclude_private and k[0] == '_': continue
         if only_exported and k not in exports: continue
@@ -284,7 +271,9 @@ def get_tool_names(
             try:
                 if is_usable_tool(v): 
                     if inspect.isclass(v) and '__call__' not in v.__dict__: continue
-                    res[getattr(v, '__module__', 'unknown')].append(k)
+                    if get_schema(v): 
+                        mod = getattr(v, '__module__', 'unknown')
+                        if v not in vis[mod]: res[mod].append(k); vis[mod].add(v)
             except Exception: pass
     return dict(res)
 
@@ -296,19 +285,35 @@ def show_tool_names(*args, **kwargs):
         print('  ', ', '.join(syms))
 
 # %% ../nbs/00_core.ipynb #7fca2fc7
+def mk_ns_toollist(ns, syms): 
+    ismod = inspect.ismodule(ns)
+    return "\n".join(f"- &`{sym}`: {(getattr(ns, sym) if ismod else ns[sym]).__doc__}" for sym in syms)
+
+# %% ../nbs/00_core.ipynb #e19bcfdf
 delegates(get_tool_names)
-def add_tools_card(ns:Mapping=None, **kwargs):
+async def add_tools_card(ns:Mapping=None, **kwargs):
     "Add a message with all tools in namespace `ns` or caller globals"
     ns = ns or get_ipython().user_ns
     mod2tool = get_tool_names(ns, **kwargs)
-    content = '\n\n'.join(f"## {mod}\n\n{mk_toollist(getattr(ns, t) if inspect.ismodule(ns) else ns[t] for t in tools)}" for mod,tools in mod2tool.items())
-    link_msg(content)
+    content = '\n\n'.join(f"## {mod}\n\n{mk_ns_toollist(ns, tools)}" for mod,tools in mod2tool.items())
+    await link_msg(content)
 
-# %% ../nbs/00_core.ipynb #867a1670
+# %% ../nbs/00_core.ipynb #5a13b503
+def nb_path(dname:str=''): return (Path.home()/(dname or find_dname()).removeprefix('/')).with_suffix('.ipynb')
+
+# %% ../nbs/00_core.ipynb #801eec3c
+_exp_pat =r'^\s*#\s*\|\s*default_exp\s+(\w+)'
+async def dlg_module(dname:str=''):
+    msgs = await find_msgs(_exp_pat, dname=(dname or find_dname()), limit=1, include_output=False, include_meta=False)
+    if msgs: return msgs[0].content.strip().split()[-1]
+
+# %% ../nbs/00_core.ipynb #85debf85
 def dlg_export(dname:str=''):
-    if IN_NOTEBOOK:
-        dlg_path = Path(dname or find_dname()).with_suffix(".ipynb").name
-        nbdev_export(dlg_path)
+    "Export dialog `dname` to Python module"
+    dlg_path = (Path.home()/(find_dname().removeprefix('/'))).with_suffix(".ipynb")
+    from nbdev.export import nb_export
+    nb_export(dlg_path)
+    return dlg_path.exists()
 
 # %% ../nbs/00_core.ipynb #f6dfc50c
 def dialog_link(
@@ -319,11 +324,12 @@ def dialog_link(
     return dialog_link(path).data
 
 # %% ../nbs/00_core.ipynb #2b349e8c
-def ctxusage(id:str='', dname:str=''):
-    msgs = find_msgs(include_output=False, dname=dname)
+async def ctxusage(id:str='', dname:str=''):
+    msgs = await find_msgs(include_output=False, dname=dname)
     id = id or find_msg_id()
-    pos = msg_idx(id)
-    return sum(m.input_tokens + m.output_tokens for m in msgs[:pos] if not m.skipped)
+    pos = await msg_idx(id)
+    # return sum(m.input_tokens + m.output_tokens for m in msgs[:pos] if not m.skipped)
+    return sum(m.input_tokens for m in msgs[:pos] if not m.skipped)
 
 # %% ../nbs/00_core.ipynb #0f89451e
 def empty_dialog_nb() -> str:
@@ -362,7 +368,7 @@ def find_symbol_msg(msgs, sym:str) -> dict|None:
     return None
 
 # %% ../nbs/00_core.ipynb #6524b978
-def importdlg(
+async def importdlg(
     dname:str='',  # dialog to import from; relative to solveit root (if starts with /) or current dialog; empty string for current dialog
     syms:list[str]=None,  # symbol names to import (finds last def/class/assignment); if provided, regex is ignored
     ids:list[str]=None,  # message ids to import; can combine with syms; if syms or ids provided, regex is ignored
@@ -373,8 +379,8 @@ def importdlg(
     heading_collapsed:bool=False  # collapse the header after creation
 ):
     "Import messages from dname by symbols, ids, regex filter, or all messages; inserts below current message in original order"
-    msgs, to_import = find_msgs(dname=dname, include_meta=True, include_output=True), []
-    if not dname: msgs = msgs[:msg_idx(find_msg_id())]
+    msgs, to_import = await find_msgs(dname=dname, include_meta=True, include_output=True), []
+    if not dname: msgs = msgs[:await msg_idx(find_msg_id())]
     if syms or ids:
         id2idx, seen = {m.id:i for i,m in enumerate(msgs)}, set()
         if syms:
@@ -388,13 +394,13 @@ def importdlg(
         to_import = msgs
         if re_include: to_import = [m for m in to_import if re.search(re_include, m.content + m.output, re.MULTILINE | re.DOTALL)]
         if re_exclude: to_import = [m for m in to_import if not re.search(re_exclude, m.content + m.output, re.MULTILINE | re.DOTALL)]
-    new_ids = [add_msg(**_r(m)) for m in to_import]
+    new_ids = [await add_msg(**_r(m)) for m in to_import]
     if header and new_ids: 
-        hdrid = add_msg(f"## Imported from {dname}", placement='add_before', id=new_ids[0])
+        hdrid = await add_msg(f"## Imported from {dname}", placement='add_before', id=new_ids[0])
         new_ids.insert(0, hdrid)
-        new_ids.append(add_msg("## ----", id=new_ids[-1]))
-    time.sleep(0.5)
-    if run and new_ids: run_msg(','.join(new_ids))
-    time.sleep(0.1)
-    if heading_collapsed and header: toggle_header(hdrid)
+        new_ids.append(await add_msg("## ----", id=new_ids[-1]))
+    # time.sleep(0.5)
+    if run and new_ids: await run_msg(','.join(new_ids))
+    # time.sleep(0.1)
+    if heading_collapsed and header: await toggle_header(hdrid)
     return new_ids

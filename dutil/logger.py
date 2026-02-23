@@ -11,47 +11,56 @@ from datetime import datetime
 from html import unescape
 from fastcore.all import patch
 from dialoghelper.core import update_msg, find_msg_id, read_msg, find_dname
-from .core import set_var
+from anyio.from_thread import BlockingPortalProvider
 
-# %% ../nbs/01_logger.ipynb #461b9dd1
+# %% ../nbs/01_logger.ipynb #cc11f539
+_provider = BlockingPortalProvider() # module level portal
+
+# %% ../nbs/01_logger.ipynb #1222e792
+async def _update(msgid, output, dname): await update_msg(msgid, output=output, dname=dname)
+async def _read(msgid, dname): return unescape((await read_msg(0, id=msgid, dname=dname)).output)
+
+# %% ../nbs/01_logger.ipynb #05ebc418
 class Logger:
     "Timestamped logger that uses a cell's output as sink"
-    msgid:str; dname:str
-    def __init__(self, id:str='', dname:str='', clear:bool=True, sym='log'): 
-        self.setup(id, dname, clear if not dname else False)
+    def __init__(self, id:str='', dname:str='', clear:bool=True, sym:str='log', prepend:bool=False): 
+        self.setup(id, dname, clear if not dname else False, sym, prepend)
         self.show()
-    def setup(self, id:str='', dname:str='', clear:bool=False, sym='log'): 
-        "Setup logger for current message cell"
+    
+    def setup(self, id:str='', dname:str='', clear:bool=False, sym:str='log', prepend:bool=False): 
         curr = find_dname()
-        self.dname, self.msgid = dname or curr, id or find_msg_id()
+        self.dname, self.msgid, self.prepend = dname or curr, id or find_msg_id(), prepend
         self._xs = self.dname != curr
-        if clear: self.clear()
-        self._s = unescape(read_msg(0, id=self.msgid, dname=self.dname).output) if dname else getattr(self, '_s', '')
-        set_var(sym, self, True)
-    def show(self): self.msgid = find_msg_id(); print(self._s, end='')
+        with _provider as portal:
+            if clear: self._s = ''; return portal.call(_update, self.msgid, '', self.dname)
+            self._s = portal.call(_read, self.msgid, self.dname) if dname else getattr(self, '_s', '')
+    
     def clear(self): 
-        "Clear all log entries and output"
-        self._s=''; update_msg(self.msgid, output='', dname=self.dname)
+        self._s = ''
+        with _provider as portal: portal.call(_update, self.msgid, '', self.dname)
+    
     @property
     def logs(self): return self._s.splitlines()
+    def show(self): self.msgid = find_msg_id(); print(self._s, end='')
     def __repr__(self): return self._s
-    def __str__(self): return self._s
-    def __call__(self, msg, *args, **kwargs): 
-        "Add timestamped message to log"
-        dt = datetime.now(); s = f"[{dt:%H:%M:%S}.{dt.microsecond//1000:03d}] {msg}"
-        self._s = s + (f"\n{self._s}" if self._s != '' else '')
+    def __call__(self, *args, sep=' ', end='\n', file=None, flush=False): 
+        dt = datetime.now()
+        msg = sep.join(str(a) for a in args)
+        s = f"[{dt:%H:%M:%S}.{dt.microsecond//1000:03d}] {msg}"
+        self._s = (s + end + self._s) if self.prepend else (self._s + s + end)
         out = '[{"name": "stdout", "output_type": "stream", "text": %s}]' % json.dumps(self._s)
-        update_msg(self.msgid, output=out, dname=self.dname)
+        with _provider as portal: portal.call(_update, self.msgid, out, self.dname)
 
-# %% ../nbs/01_logger.ipynb #23b4e5ca
+# %% ../nbs/01_logger.ipynb #8c9487aa
 @patch
 def show(self:Logger, clear:bool=False):
     "Display log in current cell, optionally clearing first"
-    if self._xs: self._s = unescape(read_msg(0, id=self.msgid, dname=self.dname).output)
+    if self._xs: 
+        with _provider as portal: self._s = portal.call(_read, self.msgid, self.dname)
     else:
         if self.msgid != find_msg_id():
             oldid = self.msgid
             self.setup()
-            update_msg(oldid, output='', dname=self.dname)
+            with _provider as portal: portal.call(_update, oldid, '', self.dname)
         if clear: self.clear()
     print(self._s, end='')

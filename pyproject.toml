@@ -1,3 +1,31 @@
 [build-system]
-requires = ["setuptools>=64.0"]
+requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "dutil"
+dynamic = ["version"]
+description = "Utilities to work with SolveIt"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "Apache-2.0"}
+authors = [{name = "Vic", email = "civvic@gmail.com"}]
+keywords = ['nbdev', 'jupyter', 'notebook', 'python']
+classifiers = ["Natural Language :: English", "Intended Audience :: Developers", "Development Status :: 3 - Alpha", "Programming Language :: Python :: 3", "Programming Language :: Python :: 3 :: Only"]
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/civvic/dutil"
+Documentation = "https://civvic.github.io/dutil"
+
+[project.entry-points.nbdev]
+dutil = "dutil._modidx:d"
+
+[tool.setuptools.dynamic]
+version = {attr = "dutil.__version__"}
+
+[tool.setuptools.packages.find]
+include = ["dutil"]
+
+[tool.nbdev]
+recursive = false
