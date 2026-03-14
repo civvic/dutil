@@ -10,7 +10,7 @@ __all__ = ['setup_dialog', 'solveit_version', 'in_dialog', 'get_caller_globals',
            'dlg_export', 'get_dialog_link', 'ctxusage', 'empty_dialog_nb', 'find_symbol_msg', 'importdlg']
 
 # %% ../nbs/00_core.ipynb #e72f67fd
-import re, sys, inspect, uuid, json, time
+import os, re, sys, inspect, uuid, json, time
 from collections import defaultdict
 from inspect import Parameter, currentframe
 from pathlib import Path
@@ -37,7 +37,7 @@ def solveit_version():
 # %% ../nbs/00_core.ipynb #85a58913
 def in_dialog():
     "Check if the code is running in a solveit dialog"
-    return in_ipython() and bool(solveit_version() and find_dname())
+    return os.environ.get('IN_SOLVEIT') and in_ipython() and bool(solveit_version() and find_dname())
 
 # %% ../nbs/00_core.ipynb #a0c6cf33
 def get_caller_globals(): 
