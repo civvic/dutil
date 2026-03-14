@@ -37,7 +37,11 @@ def solveit_version():
 # %% ../nbs/00_core.ipynb #85a58913
 def in_dialog():
     "Check if the code is running in a solveit dialog"
-    return os.environ.get('IN_SOLVEIT') and in_ipython() and bool(solveit_version() and find_dname())
+    if not (os.environ.get('IN_SOLVEIT') and in_ipython() and bool(solveit_version())): return False
+    try:
+        if find_dname(): return True
+    except: pass
+    return False
 
 # %% ../nbs/00_core.ipynb #a0c6cf33
 def get_caller_globals(): 
@@ -65,6 +69,7 @@ def format_output(o, **kwargs):
   return json.dumps([{"data": d, "metadata": md, "output_type": "display_data"}])
 
 # %% ../nbs/00_core.ipynb #e45e9175
+# old version from `dialoghelper`, not thread safe
 def _find_frame_dict(sentinel:str):
     "Find the globals dict containing sentinel, or calling frame's globals if no sentinel"
     frame = currentframe().f_back.f_back
@@ -74,14 +79,12 @@ def _find_frame_dict(sentinel:str):
         frame = frame.f_back
     return globals()
 
-# %% ../nbs/00_core.ipynb #37bff7a9
 def set_var(var:str, val, force:bool=False):
     "Set var to val after finding it in all frames of the call stack"
     frame = _find_frame_dict(var)
     if var not in frame and not force: raise ValueError(f"Could not find {var} in any scope")
     frame[var] = val
 
-# %% ../nbs/00_core.ipynb #52a00803
 def find_var(var:str, default:Any=Parameter.empty):
     "Search for var in all frames of the call stack"
     if var in (frame := _find_frame_dict(var)): return frame[var]
@@ -335,8 +338,7 @@ async def ctxusage(id:str='', dname:str=''):
     msgs = await find_msgs(include_output=False, dname=dname)
     id = id or await get_msg_id()
     pos = await msg_idx(id)
-    # return sum(m.input_tokens + m.output_tokens for m in msgs[:pos] if not m.skipped)
-    return sum(m.input_tokens for m in msgs[:pos] if not m.skipped)
+    return sum(m.input_tokens + (m.output_tokens or 0) for m in msgs[:pos] if not m.skipped)
 
 # %% ../nbs/00_core.ipynb #0f89451e
 def empty_dialog_nb() -> str:

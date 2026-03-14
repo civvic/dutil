@@ -2,7 +2,7 @@
     // --- Serialization ---
     const _xhr_fields = ['status', 'statusText', 'responseText', 'responseURL'];
     const _ser_xhr = xhr => Object.fromEntries(_xhr_fields.map(k => [k, xhr[k]]));
-    const _ser_elt = e => ({id: e.id, tagName: e.tagName.toLowerCase(), outerHTML: e.outerHTML});
+    const _ser_elt = e => e.outerHTML;
     const _ser_detail = d => ({
         ...(d.xhr ? {xhr: _ser_xhr(d.xhr)} : {}),
         successful: d.successful, failed: d.failed,
@@ -51,9 +51,9 @@
         takeClass:    _sync(a => { htmx.takeClass(_elt(a[0]), a[1]); return true; }),
         logAll:       _sync(() => { htmx.logAll(); return true; }),
         logNone:      _sync(() => { htmx.logNone(); return true; }),
-        parseInterval:_sync(a => ({result: htmx.parseInterval(a[0])})),
-        values:       _sync(a => ({result: htmx.values(_elt(a[0]), a[1])})),
-        get_config:   _sync(a => ({key: a[0], value: htmx.config[a[0]]})),
+        parseInterval:_sync(a => { return htmx.parseInterval(a[0]) }),
+        values:       _sync(a => { return {...htmx.values(_elt(a[0]), a[1])} }),
+        get_config:   _sync(a => { return { key: a[0], value: htmx.config[a[0]] }}),
         set_config:   _sync(a => { htmx.config[a[0]] = a[1]; return true; }),
 
         // Sync: element queries (custom error messages for not-found)
@@ -66,7 +66,7 @@
         findAll: _sync(a => {
             const [root, sel] = _resolve_root(a);
             const els = [...htmx.findAll(...(root ? [root, sel] : [sel]))];
-            return {count: els.length, items: els.map(_ser_elt)};
+            return els.map(_ser_elt);
         }),
         closest: _sync(a => {
             const e = htmx.closest(_elt(a[0]), a[1]);
@@ -114,7 +114,7 @@
                 pushData(idx, cleanup(_err('htmx:swapError')));
             });
             const opts = {...(swapOptions ?? {}),
-                afterSettleCallback: () => _push(idx, cleanup(_ok({swapped: true})), full_response),
+                afterSettleCallback: () => _push(idx, cleanup(_ok(true)), full_response),
                 eventInfo: {idx}};
             try {
                 if (swapSpec?.swapDelay > 0 && typeof target === 'string' && !htmx.find(target))
@@ -147,10 +147,12 @@
     // --- Bridge entry point ---
     if (window._hx_bridge) document.body.removeEventListener('hx_bridge', window._hx_bridge);
     window._hx_bridge = e => {
-        const {method, idx} = e.detail;
+        const {data:{method, ...r}, idx} = e.detail;
+        // window._hx_bridge_log.push({idx: idx, method: method, msgid: r.msgid, ts: Date.now()});
         const h = _handlers[method];
         if (!h) return pushData(idx, _err(`Unknown method: ${method}`));
-        try { h(e.detail); } catch(err) { pushData(idx, _err(String(err))); }
+        try { h({idx, ...r}); } catch(err) { pushData(idx, _err(String(err))); }
     };
+    // window._hx_bridge_log = [];
     document.body.addEventListener('hx_bridge', window._hx_bridge);
 })();
