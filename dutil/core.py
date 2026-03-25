@@ -126,7 +126,7 @@ def get_linked(id:str) -> str:
     return ''
 
 # %% ../nbs/00_core.ipynb #6b6c1b31
-if in_dialog(): get_ipython().xpush(__linked_msgs={})
+if in_dialog() and __name__ != '__main__': get_ipython().xpush(__linked_msgs={})
 
 # %% ../nbs/00_core.ipynb #69fd0e09
 delegates(add_msg)
@@ -152,7 +152,7 @@ async def hydrate():
     "Traverse dialog looking for linked messages to update `__linked_msgs`"
     linked = find_var('__linked_msgs')
     linked.clear()
-    msgs = await find_msgs(include_meta=True, include_output=False)
+    msgs = await find_msgs(include_meta=True, include_output=False, include_skipped=True)
     ids = {_.id for _ in msgs}
     for msg in msgs:
         if tag := find_tag(msg.get('content', ''), msg.get('msg_type')):
