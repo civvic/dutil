@@ -98,16 +98,18 @@ async def get_tag(name:str, val:str='', msg_type:str='note'):
 
 # %% ../nbs/00_core.ipynb #bd2da5c6
 _tagpats = {
-    'code': (re.compile(r'\A#\|\W*(\w+): ([_a-f0-9]{9})\W*$', re.MULTILINE),),
-    'note': (re.compile(r'\A<!-- (\w+): ([_a-f0-9]{9}) -->\W*$', re.MULTILINE),)
+    'code': (re.compile(r'\A#\|\W*(\w+): ([_a-f0-9]{9})\W*$', re.MULTILINE),
+             re.compile(r'^#\|\W*(\w+): ([_a-f0-9]{9})\W*\Z', re.MULTILINE)),
+    'note': (re.compile(r'\A<!-- (\w+): ([_a-f0-9]{9}) -->\W*$', re.MULTILINE),
+             re.compile(r'^<!-- (\w+): ([_a-f0-9]{9}) -->\s*\Z', re.MULTILINE))
 }
 _tagpats['raw'] = _tagpats['prompt'] = _tagpats['note']
 _tagpats[None] = _tagpats['note'] + _tagpats['code']
 
 def has_tag(s:str, msg_type:str=None) -> bool:
-    "Check if string contains tags created by get_tag at the start of the string"
-    if msg_type == 'code' and not s.startswith('#|'): return False
-    if msg_type == 'note' and not s.startswith('<!--'): return False
+    "Check if string contains tags created by get_tag at the start or end of the string"
+    if msg_type == 'code' and not (s.startswith('#|') or '\n#|' in s): return False
+    if msg_type == 'note' and not (s.startswith('<!--') or '\n<!--' in s): return False
     return any(re.search(pat, s) for pat in _tagpats[msg_type])
 
 # %% ../nbs/00_core.ipynb #070879cc
@@ -118,8 +120,8 @@ def find_tag(s: str, msg_type: str = None) -> str:
     return ''
 
 # %% ../nbs/00_core.ipynb #c8a25aeb
-def get_linked(id:str) -> str:
-    if (msg := read_msg(0, id=id)).get('id','') == id:
+async def get_linked(id:str) -> str:
+    if (msg := (await read_msg(0, id=id))).get('id','') == id:
         if tag := find_tag(msg.content, msg.msg_type):
             k,v = tag.split(': ')
             if k == 'linkedto': return v
@@ -133,18 +135,20 @@ delegates(add_msg)
 async def link_msg(
     content:str=None,  # Content of the linked message
     id:str=None,  # ID of the message to link to, or current message if not provided
+    pos:str='end',  # Position of the tag in the message
     **kwargs  # Additional keyword arguments for `add_msg` or `update_msg`
-    ) -> str:  # id of linked message
+) -> str:  # id of linked message
     "Add or update a message linked to `anchor` message. Note only one linked msg per anchor."
     anchor_id, linked = id or await get_msg_id(), find_var('__linked_msgs')
+    def _with_tag(tag, c): return f"{tag}\n{c}" if pos=='start' else f"{c}\n{tag}"
     if linked_id := linked.get(anchor_id):
         if (msg := await read_msg(0, id=linked_id)).get('id','') == linked_id:
             tag = await get_tag('linkedto', anchor_id, kwargs.get('msg_type', msg.msg_type))
-            if content: kwargs['content'] = f"{tag}\n{content}"
+            if content: kwargs['content'] = _with_tag(tag, content)
             linked[anchor_id] = await update_msg(linked_id, **kwargs)
             return linked[anchor_id]
     tag = await get_tag('linkedto', anchor_id, kwargs.get('msg_type', 'note'))
-    linked[anchor_id] = await add_msg(f"{tag}\n{content or '.'}", id=anchor_id, **kwargs)
+    linked[anchor_id] = await add_msg(_with_tag(tag, content or '.'), id=anchor_id, **kwargs)  # NOTE: bug note message w/ only comment
     return linked[anchor_id]
 
 # %% ../nbs/00_core.ipynb #dab704aa
