@@ -265,18 +265,21 @@ async def add_info(msgid:str=''):
 def summarize(target, context): pass
 
 # %% ../nbs/00_core.ipynb #2f133f3b
+def _get_ns(ns):
+    if inspect.ismodule(ns): ns = vars(ns)
+    elif isinstance(ns, str): ns = {k: get_ipython().user_ns[k] for _ in re.split(r'\s*,\s*', ns) if (k := _.strip())}
+    return ns or get_ipython().user_ns
+
 def get_tool_names(
-    ns:Mapping=None,  # module or mapping; None uses IPython user namespace
+    ns:Mapping|str=None,  # module,mapping,comma-separated str; None uses IPython user namespace
     exclude:Mapping|list[str]=None,  # module/mapping (recursively scanned) or list of symbol names to exclude
     only_exported:bool=False,  # if ns is a module, only include symbols in __all__
     exclude_private:bool=True  # exclude symbols starting with '_'
 ) -> dict[str,list[str]]:  # module name -> list of tool names
     "Return dict mapping module names to lists of usable tool names from namespace ns (or IPython user namespace if None)."
-    exports = set(getattr(ns, '__all__', []))
-    if inspect.ismodule(ns): ns = vars(ns)
-    if not ns: ns = get_ipython().user_ns
+    ns = _get_ns(ns)
     if exclude: exclude = set(sum(get_tool_names(exclude).values(), []) if not is_listy(exclude) else exclude)
-    res, vis = defaultdict(list), defaultdict(set)
+    res, vis, exports = defaultdict(list), defaultdict(set), set(getattr(ns, '__all__', []))
     for k,v in ns.items():
         if exclude_private and k[0] == '_': continue
         if only_exported and k not in exports: continue
@@ -305,9 +308,9 @@ def mk_ns_toollist(ns, syms):
 
 # %% ../nbs/00_core.ipynb #e19bcfdf
 delegates(get_tool_names)
-async def add_tools_card(ns:Mapping=None, **kwargs):
+async def add_tools_card(ns:Mapping|str=None, **kwargs):
     "Add a message with all tools in namespace `ns` or caller globals"
-    ns = ns or get_ipython().user_ns
+    ns = _get_ns(ns)
     mod2tool = get_tool_names(ns, **kwargs)
     content = '\n\n'.join(f"## {mod}\n\n{mk_ns_toollist(ns, tools)}" for mod,tools in mod2tool.items())
     await link_msg(content)
