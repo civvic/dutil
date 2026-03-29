@@ -23,7 +23,7 @@ from fastcore.meta import delegates
 from fastcore.xtras import is_listy
 import dialoghelper
 from dialoghelper.core import add_msg, is_usable_tool, read_msg, update_msg, find_msgs, msg_idx, run_msg, toggle_header, ast_py, find_dname
-from toolslm.funccall import get_schema
+from toolslm.funccall import get_schema, resolve_nm
 from fastgit import Git
 
 
@@ -279,7 +279,7 @@ def get_tool_names(
     "Return dict mapping module names to lists of usable tool names from namespace ns (or IPython user namespace if None)."
     ns = _get_ns(ns)
     if exclude: exclude = set(sum(get_tool_names(exclude).values(), []) if not is_listy(exclude) else exclude)
-    res, vis, exports = defaultdict(list), defaultdict(set), set(getattr(ns, '__all__', []))
+    res, vis, exports = defaultdict(list), defaultdict(set), set(ns.get('__all__', []))
     for k,v in ns.items():
         if exclude_private and k[0] == '_': continue
         if only_exported and k not in exports: continue
@@ -302,10 +302,9 @@ def show_tool_names(*args, **kwargs):
         print('  ', ', '.join(syms))
 
 # %% ../nbs/00_core.ipynb #7fca2fc7
-def mk_ns_toollist(ns, syms):
+def mk_ns_toollist(ns, nms):
     ns = _get_ns(ns)
-    ismod = inspect.ismodule(ns)
-    return "\n".join(f"- &`{sym}`: {(getattr(ns, sym) if ismod else ns[sym]).__doc__}" for sym in syms)
+    return "\n".join(f"- &`{nm}`: {resolve_nm(nm, ns).__doc__}" for nm in nms)
 
 # %% ../nbs/00_core.ipynb #e19bcfdf
 delegates(get_tool_names)
