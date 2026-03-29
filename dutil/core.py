@@ -302,7 +302,8 @@ def show_tool_names(*args, **kwargs):
         print('  ', ', '.join(syms))
 
 # %% ../nbs/00_core.ipynb #7fca2fc7
-def mk_ns_toollist(ns, syms): 
+def mk_ns_toollist(ns, syms):
+    ns = _get_ns(ns)
     ismod = inspect.ismodule(ns)
     return "\n".join(f"- &`{sym}`: {(getattr(ns, sym) if ismod else ns[sym]).__doc__}" for sym in syms)
 
